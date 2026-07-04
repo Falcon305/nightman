@@ -124,6 +124,7 @@ def _run_property(
         target=target_spec,
         status="failing",
         property=plan.name,
+        partner=plan.partner,
         seed=seed_value,
         executions=stats["execs"],
         executions_to_first_failure=first_fail,

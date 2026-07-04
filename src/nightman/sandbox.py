@@ -5,10 +5,14 @@ import multiprocessing as mp
 import signal
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from types import ModuleType
 from typing import Any
 
+resource: ModuleType | None
 try:
-    import resource
+    import resource as _resource
+
+    resource = _resource
 except ImportError:
     resource = None
 

@@ -24,12 +24,25 @@ class HuntResult(BaseModel):
     target: str = Field(description="the hunted target, module:function")
     status: str = Field(description="failing, clean, or error")
     property: str = Field(default="", description="the property that was checked")
+    partner: str | None = Field(default=None, description="the reference or inverse function, when relevant")
     seed: int = Field(default=0, description="RNG seed for reproducibility")
     executions: int = Field(default=0, description="total candidate executions")
     executions_to_first_failure: int | None = Field(default=None, description="executions until first failure")
     shrink_executions: int = Field(default=0, description="executions spent shrinking")
     failure: Failure | None = Field(default=None, description="the minimal failure, when status is failing")
     message: str = Field(default="", description="human-readable status detail")
+
+
+class InferResult(BaseModel):
+    target: str
+    strategies: dict[str, str] = Field(description="per-argument input strategy that will be used")
+    properties: list[PropertyPlan] = Field(description="the properties Nightman will check, strongest first")
+
+
+class HardenResult(BaseModel):
+    result: HuntResult
+    test_source: str | None = Field(default=None, description="the rendered pytest regression test")
+    wrote: str | None = Field(default=None, description="path the regression test was written to")
 
 
 class PropertyPlan(BaseModel):

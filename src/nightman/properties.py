@@ -149,7 +149,10 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
         def check_idempotent(**kwargs: Any) -> None:
             try:
                 first = func(**kwargs)
-                second = func(**{**kwargs, first_arg: first})
+                feedback = dict(kwargs)
+                if first_arg is not None:
+                    feedback[first_arg] = first
+                second = func(**feedback)
             except Exception as exc:
                 if _guard(exc):
                     return
@@ -162,6 +165,8 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
     if plan.name == "roundtrip":
 
         def check_roundtrip(**kwargs: Any) -> None:
+            if first_arg is None or partner is None:
+                return
             value = kwargs[first_arg]
             try:
                 decoded = partner(func(**kwargs))
@@ -177,6 +182,8 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
     if plan.name == "differential":
 
         def check_differential(**kwargs: Any) -> None:
+            if partner is None:
+                return
             left = _outcome(func, kwargs)
             right = _outcome(partner, kwargs)
             if left != right:

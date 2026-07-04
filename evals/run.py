@@ -102,7 +102,7 @@ def main() -> int:
         fp_cell = "FP" if r["fp"] else "-"
         print(
             f"{r['category']:<20} {r['oracle']:<13} {detect_cell:<7} {r['trials']:<7} "
-            f"{size_cell:<10} {str(r['ttff']):<6} {fp_cell}"
+            f"{size_cell:<10} {r['ttff']!s:<6} {fp_cell}"
         )
 
     print()

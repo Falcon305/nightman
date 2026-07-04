@@ -26,6 +26,7 @@ _PROPERTY_CATEGORY = {
     "roundtrip": "roundtrip-broken",
     "idempotent": "not-idempotent",
     "commutative": "not-commutative",
+    "permutation": "order-dependent",
     "metamorphic": "broken-relation",
     "type-contract": "wrong-output-type",
 }

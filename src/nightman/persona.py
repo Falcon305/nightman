@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from .models import HuntResult
+
+if TYPE_CHECKING:
+    from .models import ScanReport
 
 _CLEAN = "☀️ Dayman holds. The Nightman threw {execs} inputs at {func}() and it stood."
 _CLEAN_PLAIN = "PASS: no failing input found for {func} in {execs} executions."
@@ -56,3 +61,35 @@ def render_hunt(result: HuntResult, mode: str = "nightman") -> str:
         f"   found on try #{result.executions_to_first_failure}.{shrink_note}",
     ]
     return "\n".join(lines)
+
+
+def _finding_row(result: HuntResult) -> str:
+    failure = result.failure
+    assert failure is not None
+    func = _func_name(result.target)
+    verdict = failure.exception_type or f"{result.property} violation"
+    return f"  [{failure.severity}/{failure.confidence:<9}] {func:<24} {verdict:<20} {failure.args_repr}"
+
+
+def render_scan(report: ScanReport, mode: str = "nightman") -> str:
+    if mode == "plain":
+        head = (
+            f"Scanned {report.scanned} function(s) in {report.root} — "
+            f"{len(report.findings)} broke, {report.clean} held, grade {report.grade}."
+        )
+        return "\n".join([head, *(_finding_row(r) for r in report.findings)])
+
+    if not report.findings:
+        return (
+            f"☀️ Dayman wins. The Nightman came for {report.scanned} function(s) in {report.root} "
+            f"and not one of them broke. Grade {report.grade}."
+        )
+    header = [
+        f"🌙 THE NIGHTMAN CAME FOR {report.scanned} FUNCTION(S). He broke {len(report.findings)}.",
+        f"   Grade {report.grade}. Worst first:",
+    ]
+    body = [_finding_row(r) for r in report.findings[:20]]
+    tail = []
+    if len(report.findings) > 20:
+        tail = [f"   … and {len(report.findings) - 20} more. Filter by confidence or scan a smaller path."]
+    return "\n".join([*header, *body, *tail])

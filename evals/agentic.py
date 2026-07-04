@@ -13,6 +13,8 @@ _CASES = [
     ("Find an input that crashes parser.py:parse.", "nightman_hunt"),
     ("Find the bug in parse() and show me the regression test, don't save it.", "nightman_harden"),
     ("Find the bug in parse() and write the regression test into my repo.", "nightman_write_regression_test"),
+    ("Explain why parse() is fragile and how bad it is.", "nightman_explain"),
+    ("Check every function in src/ for crashes and rank the worst.", "nightman_scan"),
 ]
 
 

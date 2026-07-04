@@ -30,7 +30,8 @@ def explain(target: str, *, seed: int = 0, max_examples: int = 300) -> Explanati
     report = (
         f"{func}{where_note} breaks on {failure.args_repr}.\n"
         f"It raises {verdict}: {failure.message}.\n"
-        f"Category: {failure.category} · severity {failure.severity}/5 · {failure.confidence} confidence.{replay}\n"
+        f"Category: {failure.category} · severity {failure.severity}/5 · "
+        f"{failure.confidence} confidence.{replay}\n"
         f"The Nightman found it on try #{result.executions_to_first_failure} "
         f"and shrank it to a {failure.input_size}-unit input.\n"
         f"Fix: {failure.fix_hint}"

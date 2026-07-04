@@ -60,6 +60,17 @@ class Explanation(BaseModel):
     fix_hint: str = ""
 
 
+class ScanReport(BaseModel):
+    report: str = Field(description="human-readable ranked report")
+    root: str
+    scanned: int = Field(description="number of functions hunted")
+    clean: int = Field(description="functions the Nightman could not break")
+    errors: int = Field(description="functions that could not be hunted")
+    findings: list[HuntResult] = Field(description="failing functions, ranked worst first")
+    counts: dict[str, int] = Field(default_factory=dict, description="finding counts by confidence tier")
+    grade: str = Field(description="A to F, based on how many functions broke")
+
+
 class PropertyPlan(BaseModel):
     name: str = Field(description="never-raises, idempotent, roundtrip, or differential")
     description: str = ""

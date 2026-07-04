@@ -40,6 +40,38 @@ Or point it at a file directly:
 uvx --from git+https://github.com/Falcon305/nightman nightman hunt path/to/parsing.py:parse
 ```
 
+## Scan a whole codebase
+
+Don't want to name functions one at a time? Point Nightman at a file, directory, or package and he hunts *every* public function, then ranks what breaks worst-first:
+
+```
+$ nightman scan src/
+
+🌙 THE NIGHTMAN CAME FOR 34 FUNCTION(S). He broke 5.
+   Grade D. Worst first:
+  [5/verified ] parse_config       KeyError            parse_config(cfg={})
+  [4/verified ] to_slug            IndexError          to_slug(title='')
+  [4/verified ] clamp              ZeroDivisionError   clamp(x=0, lo=0, hi=0)
+  [4/high     ] encode_token       UnicodeEncodeError  encode_token(s='\x80')
+  [3/heuristic] load_rows          ValueError          load_rows(path='')
+```
+
+Every finding carries a **category, a severity (1–5), and a confidence tier** — `verified` means Nightman replayed the minimal input and it reproduced every time. Tune what he chases with `[tool.nightman]` in `pyproject.toml`: exclude globs, a `min_confidence` floor, and per-function `allow` lists so an *intended* exception is never re-flagged.
+
+## Fail CI only on new crashes
+
+`nightman gate` scans and exits non-zero when something breaks — and with a committed baseline it fails a PR **only on crashes that PR introduced**, never the legacy backlog. Drop the Action into a workflow:
+
+```yaml
+- uses: Falcon305/nightman@master
+  with:
+    path: src/
+    severity: "4"
+    baseline: "true"
+```
+
+`nightman sarif -o nightman.sarif` emits SARIF 2.1.0, so findings show up in GitHub's Security tab via `github/codeql-action/upload-sarif`.
+
 ## What it looks like
 
 ```
@@ -126,7 +158,7 @@ Nightman is also an MCP server, so an agent can hunt bugs and write regression t
 }
 ```
 
-It exposes `nightman_infer_inputs`, `nightman_hunt`, `nightman_harden`, and `nightman_write_regression_test` (structured output), plus a `harden_function` prompt that scripts the whole loop. Then: *"Harden `parse` in parser.py — find how it breaks, fix it, and leave a regression test."*
+It exposes six structured-output tools — `nightman_infer_inputs`, `nightman_hunt`, `nightman_harden`, `nightman_write_regression_test`, `nightman_explain` (root-cause + severity), and `nightman_scan` (whole-repo sweep) — plus a `harden_function` prompt that scripts the whole loop. Then: *"Harden `parse` in parser.py — find how it breaks, fix it, and leave a regression test."*
 
 ## Development
 

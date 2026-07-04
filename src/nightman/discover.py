@@ -4,7 +4,17 @@ import ast
 import os
 from fnmatch import fnmatch
 
-_SKIP_DIRS = {".git", ".venv", "venv", "__pycache__", ".mypy_cache", ".ruff_cache", "node_modules", "build", "dist"}
+_SKIP_DIRS = {
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".mypy_cache",
+    ".ruff_cache",
+    "node_modules",
+    "build",
+    "dist",
+}
 _IGNORE = "nightman: ignore"
 
 

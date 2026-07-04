@@ -3,10 +3,28 @@ from __future__ import annotations
 import inspect
 import re
 from collections.abc import Callable
-from typing import Any
+from typing import Any, get_origin, get_type_hints
 
 from .models import PropertyPlan
 from .target import Target
+
+_COMMUTATIVE_NAMES = (
+    "add", "plus", "sum", "combine", "merge", "union", "intersect",
+    "max", "min", "gcd", "lcm", "mul", "multiply", "times", "product", "meet", "overlap",
+)
+_ORDER_FREE_NAMES = (
+    "sum", "max", "maximum", "min", "minimum", "mean", "average", "avg",
+    "total", "product", "count", "median", "mode",
+)
+_CONTAINER_TYPES = {
+    list: "list",
+    dict: "dict",
+    set: "set",
+    frozenset: "frozenset",
+    tuple: "tuple",
+    str: "str",
+    bytes: "bytes",
+}
 
 _ROUNDTRIP_PAIRS: tuple[tuple[str, str], ...] = (
     (r"encode(.*)", "decode{}"),
@@ -82,6 +100,38 @@ def _looks_idempotent(func: Any) -> bool:
     return any(name.startswith(prefix) for prefix in _IDEMPOTENT_PREFIXES)
 
 
+def _hints(func: Any) -> dict[str, Any]:
+    try:
+        return get_type_hints(func)
+    except Exception:
+        return {}
+
+
+def _looks_commutative(func: Any, args: list[str]) -> bool:
+    if len(args) != 2:
+        return False
+    hints = _hints(func)
+    if args[0] not in hints or args[1] not in hints or hints[args[0]] != hints[args[1]]:
+        return False
+    name = getattr(func, "__name__", "").lower()
+    return any(key in name for key in _COMMUTATIVE_NAMES)
+
+
+def _looks_order_free(func: Any, args: list[str]) -> bool:
+    if len(args) != 1:
+        return False
+    name = getattr(func, "__name__", "").lower()
+    return any(name == key or name.startswith(f"{key}_") or name.endswith(f"_{key}") for key in _ORDER_FREE_NAMES)
+
+
+def _return_container(func: Any) -> str | None:
+    ret = _hints(func).get("return")
+    if ret is None:
+        return None
+    origin = get_origin(ret) or ret
+    return _CONTAINER_TYPES.get(origin)
+
+
 def choose_properties(target: Target, siblings: dict[str, Any]) -> list[PropertyPlan]:
     func = target.func
     allowed = _docstring_raises(func.__doc__ or "")
@@ -104,6 +154,21 @@ def choose_properties(target: Target, siblings: dict[str, Any]) -> list[Property
                 feedback_arg=args[0],
                 allowed_exceptions=allowed,
                 description=f"{func.__name__}({func.__name__}(x)) == {func.__name__}(x)",
+            )
+        )
+    if _looks_commutative(func, args):
+        plans.append(
+            PropertyPlan(name="commutative", allowed_exceptions=allowed, description="f(a, b) == f(b, a)")
+        )
+    if _looks_order_free(func, args):
+        plans.append(
+            PropertyPlan(name="permutation", allowed_exceptions=allowed, description="f(xs) == f(reversed xs)")
+        )
+    container = _return_container(func)
+    if container:
+        plans.append(
+            PropertyPlan(
+                name="type-contract", allowed_exceptions=allowed, description=f"returns a {container}"
             )
         )
     plans.append(
@@ -190,6 +255,59 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
                 raise PropertyViolation(f"differs: target={left!r} reference={right!r}")
 
         return check_differential
+
+    if plan.name == "commutative":
+
+        def check_commutative(**kwargs: Any) -> None:
+            values = list(kwargs.values())
+            try:
+                forward = func(**kwargs)
+                backward = func(*reversed(values))
+            except Exception as exc:
+                if _guard(exc):
+                    return
+                raise
+            if forward != backward:
+                raise PropertyViolation(f"not commutative: f(a,b)={forward!r} != f(b,a)={backward!r}")
+
+        return check_commutative
+
+    if plan.name == "permutation":
+
+        def check_permutation(**kwargs: Any) -> None:
+            values = list(kwargs.values())
+            sequence = values[0]
+            if not isinstance(sequence, (list, tuple)):
+                return
+            try:
+                base = func(**kwargs)
+                shuffled = func(*[list(reversed(sequence)), *values[1:]])
+            except Exception as exc:
+                if _guard(exc):
+                    return
+                raise
+            if base != shuffled:
+                raise PropertyViolation(f"order-dependent: f(xs)={base!r} != f(reversed xs)={shuffled!r}")
+
+        return check_permutation
+
+    if plan.name == "type-contract":
+        ret = _hints(func).get("return")
+        expected = get_origin(ret) or ret
+
+        def check_type_contract(**kwargs: Any) -> None:
+            try:
+                result = func(**kwargs)
+            except Exception as exc:
+                if _guard(exc):
+                    return
+                raise
+            if expected is not None and not isinstance(result, expected):
+                raise PropertyViolation(
+                    f"returned {type(result).__name__}, but annotated to return {getattr(expected, '__name__', expected)}"
+                )
+
+        return check_type_contract
 
     raise ValueError(f"unknown property {plan.name}")
 

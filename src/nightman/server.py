@@ -6,8 +6,9 @@ from .emit import render_regression_test, write_regression_test
 from .explain import explain
 from .hunt import hunt
 from .infer import describe_strategies
-from .models import Explanation, HardenResult, HuntResult, InferResult
+from .models import Explanation, HardenResult, HuntResult, InferResult, ScanReport
 from .properties import choose_properties
+from .sweep import sweep
 from .target import load_target, sibling_functions
 
 mcp = FastMCP("nightman")
@@ -65,6 +66,14 @@ def nightman_explain(target: str, seed: int = 0, max_examples: int = 300) -> Exp
     exception, a category and severity, whether it was replayed to confirm it reproduces,
     and a concrete fix hint. Use this to understand *why* a function is fragile."""
     return explain(target, seed=seed, max_examples=max_examples)
+
+
+@mcp.tool()
+def nightman_scan(path: str, seed: int = 0, max_examples: int = 200) -> ScanReport:
+    """Hunt every public function under a file, directory, or package and return the ones that
+    break, ranked worst-first by severity and confidence, with an overall grade. Point this at a
+    repo to find the crashes hiding across the whole codebase in one shot."""
+    return sweep(path, seed=seed, max_examples=max_examples, mode="plain")
 
 
 @mcp.prompt()

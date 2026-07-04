@@ -1,0 +1,27 @@
+name: "Nightman"
+description: "Hunt every public Python function for crashes and fail the build on new ones."
+branding:
+  icon: "moon"
+  color: "purple"
+inputs:
+  path:
+    description: "File, directory, or package to scan."
+    default: "."
+  severity:
+    description: "Minimum severity that blocks (1-5)."
+    default: "4"
+  baseline:
+    description: "Only fail on findings not in .nightman/baseline.json."
+    default: "false"
+  examples:
+    description: "Max candidate inputs per function."
+    default: "200"
+runs:
+  using: "composite"
+  steps:
+    - uses: astral-sh/setup-uv@v5
+    - shell: bash
+      run: |
+        FLAGS="--severity ${{ inputs.severity }} --examples ${{ inputs.examples }}"
+        if [ "${{ inputs.baseline }}" = "true" ]; then FLAGS="$FLAGS --baseline"; fi
+        uvx --from git+https://github.com/Falcon305/nightman nightman gate "${{ inputs.path }}" $FLAGS

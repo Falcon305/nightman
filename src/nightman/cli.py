@@ -40,6 +40,65 @@ def _cmd_harden(args: argparse.Namespace) -> int:
     return 1 if result.status == "failing" else 0
 
 
+def _cmd_scan(args: argparse.Namespace) -> int:
+    from .sweep import sweep
+
+    mode = "plain" if args.plain else "nightman"
+    report = sweep(args.path, seed=args.seed, max_examples=args.examples, workers=args.workers, mode=mode)
+    if args.json:
+        print(json.dumps(report.model_dump(), indent=2, default=str))
+    else:
+        print(report.report)
+    return 1 if report.findings else 0
+
+
+def _cmd_gate(args: argparse.Namespace) -> int:
+    from .baseline import filter_new, load_baseline
+    from .sweep import sweep
+
+    report = sweep(args.path, seed=args.seed, max_examples=args.examples, workers=args.workers, mode="plain")
+    findings = report.findings
+    if args.baseline:
+        findings = filter_new(findings, load_baseline(args.path))
+    blocking = [r for r in findings if r.failure and r.failure.severity >= args.severity]
+    if blocking:
+        scope = "new " if args.baseline else ""
+        print(f"Nightman: {len(blocking)} {scope}blocking finding(s) — he got in.")
+        for result in blocking:
+            failure = result.failure
+            if failure is None:
+                continue
+            print(f"  [{failure.severity}] {result.target.rsplit(':', 1)[-1]}  {failure.args_repr}")
+        return 1
+    print("Nightman: nothing new got in. Dayman holds the line.")
+    return 0
+
+
+def _cmd_baseline(args: argparse.Namespace) -> int:
+    from .baseline import write_baseline
+    from .sweep import sweep
+
+    report = sweep(args.path, seed=args.seed, max_examples=args.examples, workers=args.workers, mode="plain")
+    count = write_baseline(args.path, report.findings)
+    print(f"Nightman: wrote baseline with {count} known finding(s).")
+    return 0
+
+
+def _cmd_sarif(args: argparse.Namespace) -> int:
+    from .sarif import to_sarif
+    from .sweep import sweep
+
+    report = sweep(args.path, seed=args.seed, max_examples=args.examples, workers=args.workers, mode="plain")
+    payload = json.dumps(to_sarif(report.findings), indent=2)
+    if args.output:
+        with open(args.output, "w", encoding="utf-8") as handle:
+            handle.write(payload)
+        print(f"Nightman: wrote {len(report.findings)} finding(s) to {args.output}")
+    else:
+        print(payload)
+    return 0
+
+
 def _cmd_explain(args: argparse.Namespace) -> int:
     from .explain import explain
 
@@ -71,6 +130,13 @@ def _add_hunt_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--no-isolate", action="store_true", help="Run in-process (no sandbox subprocess).")
 
 
+def _add_scan_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("path", nargs="?", default=".", help="File, directory, or package to scan.")
+    parser.add_argument("--seed", type=int, default=0, help="RNG seed for reproducibility.")
+    parser.add_argument("--examples", type=int, default=200, help="Max candidate inputs per function.")
+    parser.add_argument("--workers", type=int, default=4, help="How many functions to hunt in parallel.")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="nightman", description="The Nightman comes for your untested code.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -88,6 +154,27 @@ def build_parser() -> argparse.ArgumentParser:
     explain_cmd = sub.add_parser("explain", help="Hunt a function and explain the failure in plain language.")
     _add_hunt_args(explain_cmd)
     explain_cmd.set_defaults(func=_cmd_explain)
+
+    scan = sub.add_parser("scan", help="Hunt every public function under a path and rank what breaks.")
+    _add_scan_args(scan)
+    scan.add_argument("--plain", action="store_true", help="Flavor-free output.")
+    scan.add_argument("--json", action="store_true", help="Machine-readable JSON output.")
+    scan.set_defaults(func=_cmd_scan)
+
+    gate = sub.add_parser("gate", help="Scan and fail (exit 1) on findings — for CI.")
+    _add_scan_args(gate)
+    gate.add_argument("--baseline", action="store_true", help="Only fail on findings not in the baseline.")
+    gate.add_argument("--severity", type=int, default=4, help="Minimum severity that blocks (default 4).")
+    gate.set_defaults(func=_cmd_gate)
+
+    base = sub.add_parser("baseline", help="Snapshot current findings so only new ones fail later.")
+    _add_scan_args(base)
+    base.set_defaults(func=_cmd_baseline)
+
+    sarif_cmd = sub.add_parser("sarif", help="Emit SARIF 2.1.0 for GitHub code scanning.")
+    _add_scan_args(sarif_cmd)
+    sarif_cmd.add_argument("-o", "--output", help="Write SARIF to this file instead of stdout.")
+    sarif_cmd.set_defaults(func=_cmd_sarif)
 
     serve = sub.add_parser("serve", help="Run the MCP server.")
     serve.add_argument("--http", action="store_true", help="Serve over streamable-http instead of stdio.")

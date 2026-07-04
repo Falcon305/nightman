@@ -65,6 +65,7 @@ def sweep(
     wall_s: float = 30.0,
     mode: str = "nightman",
     diff_base: str | None = None,
+    backend: str = "random",
 ) -> ScanReport:
     resolved = config or load_config(_config_root(path))
     specs = discover(path, exclude=resolved.exclude)
@@ -76,7 +77,15 @@ def sweep(
     if specs:
         with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
             futures = [
-                pool.submit(hunt, spec, seed=seed, max_examples=max_examples, config=resolved, wall_s=wall_s)
+                pool.submit(
+                    hunt,
+                    spec,
+                    seed=seed,
+                    max_examples=max_examples,
+                    config=resolved,
+                    wall_s=wall_s,
+                    backend=backend,
+                )
                 for spec in specs
             ]
             results = [future.result() for future in futures]

@@ -113,6 +113,7 @@ Nightman's value is the orchestration, the sandbox, and the committable artifact
 - **Strategy inference** from type hints (`from_type`/`builds`), with a fallback ladder for untyped code: docstring types → default values → parameter-name heuristics → a hand-built **chaos corpus** (empty collections, `NaN`/±inf, boundary ints, surrogate/`\x00`/huge strings).
 - **Properties**, strongest-first: a *never-crashes* floor, plus `roundtrip` (`decode(encode(x)) == x`, detected by name pairs), `idempotence`, `commutativity` and `permutation`-invariance (metamorphic, name-gated so they never cry wolf), a `type-contract` check (does the return match its annotation?), and a **differential** oracle for comparing a suspect against a reference.
 - **A sandboxed executor** — each hunt runs in a spawned subprocess with CPU/memory limits, so a memory bomb or an infinite loop is capped, and a native **segfault survives as a reported result instead of taking down the run**. Child processes are always reaped, so a repo-wide scan never leaks a runaway interpreter.
+- **A symbolic backend for the narrow branches** — random search will never guess `if x == 4823`. Install the extra (`pip install nightman[crosshair]`) and add `--backend crosshair` to hunt with [CrossHair](https://github.com/pschanely/crosshair)'s SMT solver, which reasons its way to exact-constant and narrow-branch bugs. Solver-found inputs are always re-verified against the real function, so a hallucinated example never becomes a false alarm.
 - **Handles the awkward shapes** — `async def` functions are awaited, generators are drained, and positional-only parameters are called correctly, so the body actually runs instead of a coroutine or generator object slipping through untested.
 
 Every emitted regression test is pinned to the Nightman and seed that found it, and renders exotic inputs faithfully — `float('nan')`, `float('inf')`, and nested containers round-trip to valid, importable Python.
@@ -190,12 +191,11 @@ CI runs ruff + mypy (typed) + pytest + the eval across Python 3.11–3.13. Relea
 
 ## Roadmap
 
-Where the Nightman is headed next, in rough priority order:
+Where the Nightman is headed next:
 
 - **A persistent example database** — sync Hypothesis's corpus across runs so a known failure reproduces instantly and the seed pool compounds over time.
-- **An opt-in CrossHair backend** (`--backend crosshair`) — symbolic execution to reach the exact-constant and narrow-branch bugs random search never hits.
 
-Already shipped: mutation scoring (`nightman score`), `--diff` PR-only hunting, duplicate crash-site collapsing, and inline GitHub PR annotations.
+Already shipped: the CrossHair symbolic backend (`--backend crosshair`), mutation scoring (`nightman score`), `--diff` PR-only hunting, duplicate crash-site collapsing, and inline GitHub PR annotations.
 
 ## The gang
 

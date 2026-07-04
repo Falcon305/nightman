@@ -16,6 +16,12 @@ from .target import load_target, reload_from_origin, sibling_functions
 _ENGINE_FILES = ("properties.py", "hunt.py", "sandbox.py", "infer.py")
 
 
+def _crosshair_available() -> bool:
+    import importlib.util
+
+    return importlib.util.find_spec("hypothesis_crosshair_provider") is not None
+
+
 def _size(value: Any) -> int:
     if isinstance(value, bool):
         return 1
@@ -68,19 +74,24 @@ def _run_property(
     seed_value: int,
     max_examples: int,
     per_example: float,
+    backend: str = "random",
 ) -> HuntResult:
     check = build_check(func, plan, partner)
     strategy = kwargs_strategy(func)
     stats: dict[str, Any] = {"execs": 0, "first_fail": None}
     captured: dict[str, Any] = {}
 
+    config: dict[str, Any] = {
+        "max_examples": max_examples,
+        "database": None,
+        "deadline": None,
+        "suppress_health_check": list(HealthCheck),
+    }
+    if backend and backend not in ("random", "hypothesis"):
+        config["backend"] = backend
+
     @seed(seed_value)
-    @settings(
-        max_examples=max_examples,
-        database=None,
-        deadline=None,
-        suppress_health_check=list(HealthCheck),
-    )
+    @settings(**config)
     @given(kwargs=strategy)
     def run(kwargs: dict) -> None:
         stats["execs"] += 1
@@ -113,6 +124,14 @@ def _run_property(
     is_property = type(exc).__name__ == "PropertyViolation"
     exc_type = None if is_property else type(exc).__name__
     verified = _reproduces(check, kwargs, per_example)
+    if backend == "crosshair" and not verified:
+        return HuntResult(
+            target=target_spec,
+            status="clean",
+            property=plan.name,
+            seed=seed_value,
+            executions=stats["execs"],
+        )
     category, severity, confidence = classify(
         "property" if is_property else "crash", plan.name, exc_type, verified
     )
@@ -195,6 +214,7 @@ def _hunt_worker(spec: dict) -> HuntResult:
             spec["seed"],
             spec["max_examples"],
             spec["per_example"],
+            spec.get("backend", "random"),
         )
         if result.status == "failing":
             return result
@@ -216,6 +236,7 @@ def hunt(
     mem_mb: int = 2048,
     cpu_s: int = 12,
     config: Config | None = None,
+    backend: str = "random",
 ) -> HuntResult:
     target = load_target(spec)
     if is_method(target.func):
@@ -223,6 +244,12 @@ def hunt(
             target=spec,
             status="error",
             message="methods aren't supported yet — point Nightman at a plain function",
+        )
+    if backend == "crosshair" and not _crosshair_available():
+        return HuntResult(
+            target=spec,
+            status="error",
+            message="the crosshair backend isn't installed — run: pip install nightman[crosshair]",
         )
     resolved = config or load_config()
     if plans is None:
@@ -240,6 +267,7 @@ def hunt(
         "max_examples": max_examples,
         "per_example": per_example,
         "plans": [p.model_dump() for p in plans],
+        "backend": backend,
     }
     if not isolate:
         return _hunt_worker(worker_spec)

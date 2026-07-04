@@ -15,6 +15,7 @@ def _run_hunt(args: argparse.Namespace) -> HuntResult:
         seed=args.seed,
         max_examples=args.examples,
         isolate=not args.no_isolate,
+        backend=getattr(args, "backend", "random"),
     )
 
 
@@ -55,6 +56,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         workers=args.workers,
         mode=mode,
         diff_base=_diff_base(args),
+        backend=args.backend,
     )
     if args.format == "github":
         from .annotate import to_github
@@ -80,6 +82,7 @@ def _cmd_gate(args: argparse.Namespace) -> int:
         workers=args.workers,
         mode="plain",
         diff_base=_diff_base(args),
+        backend=args.backend,
     )
     findings = report.findings
     if args.baseline:
@@ -168,6 +171,12 @@ def _add_hunt_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--plain", action="store_true", help="Flavor-free output.")
     parser.add_argument("--json", action="store_true", help="Machine-readable JSON output.")
     parser.add_argument("--no-isolate", action="store_true", help="Run in-process (no sandbox subprocess).")
+    parser.add_argument(
+        "--backend",
+        choices=("random", "crosshair"),
+        default="random",
+        help="Search backend: random (default) or crosshair (symbolic, needs nightman[crosshair]).",
+    )
 
 
 def _add_scan_args(parser: argparse.ArgumentParser) -> None:
@@ -177,6 +186,12 @@ def _add_scan_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--workers", type=int, default=4, help="How many functions to hunt in parallel.")
     parser.add_argument("--diff", action="store_true", help="Only hunt functions changed vs the base branch.")
     parser.add_argument("--base", default="origin/main", help="Base git ref for --diff (default origin/main).")
+    parser.add_argument(
+        "--backend",
+        choices=("random", "crosshair"),
+        default="random",
+        help="Search backend: random (default) or crosshair (symbolic, needs nightman[crosshair]).",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -45,11 +45,13 @@ def nightman_infer_inputs(target: str) -> InferResult:
 
 
 @mcp.tool(title="Hunt a function for a failing input", annotations=_READ_ONLY)
-def nightman_hunt(target: str, seed: int = 0, max_examples: int = 300) -> HuntResult:
+def nightman_hunt(target: str, seed: int = 0, max_examples: int = 300, backend: str = "random") -> HuntResult:
     """Hunt for an input that crashes a function or violates an inferred property.
     Returns the minimal failing input (already shrunk) plus the exception and location,
-    or a clean verdict. Runs the target in a sandboxed subprocess with resource limits."""
-    return hunt(target, seed=seed, max_examples=max_examples)
+    or a clean verdict. Runs the target in a sandboxed subprocess with resource limits.
+    Set backend to "crosshair" for symbolic execution that reaches narrow branches like
+    `if x == 4823` that random search misses (requires the nightman[crosshair] extra)."""
+    return hunt(target, seed=seed, max_examples=max_examples, backend=backend)
 
 
 @mcp.tool(title="Render a regression test without writing it", annotations=_READ_ONLY)

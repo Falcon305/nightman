@@ -126,6 +126,8 @@ def _allowed_tuple(names: list[str]) -> frozenset[str]:
 
 def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[..., None]:
     allowed = _allowed_tuple(plan.allowed_exceptions)
+    names = _required_positional(func)
+    first_arg = names[0] if names else None
 
     def _guard(exc: BaseException) -> bool:
         return type(exc).__name__ in allowed
@@ -134,7 +136,7 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
 
         def check_never(**kwargs: Any) -> None:
             try:
-                func(*kwargs.values())
+                func(**kwargs)
             except Exception as exc:
                 if _guard(exc):
                     return
@@ -145,10 +147,9 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
     if plan.name == "idempotent":
 
         def check_idempotent(**kwargs: Any) -> None:
-            values = list(kwargs.values())
             try:
-                first = func(*values)
-                second = func(*[first, *values[1:]])
+                first = func(**kwargs)
+                second = func(**{**kwargs, first_arg: first})
             except Exception as exc:
                 if _guard(exc):
                     return
@@ -161,9 +162,9 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
     if plan.name == "roundtrip":
 
         def check_roundtrip(**kwargs: Any) -> None:
-            value = next(iter(kwargs.values()))
+            value = kwargs[first_arg]
             try:
-                decoded = partner(func(*kwargs.values()))
+                decoded = partner(func(**kwargs))
             except Exception as exc:
                 if _guard(exc):
                     return
@@ -176,9 +177,8 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
     if plan.name == "differential":
 
         def check_differential(**kwargs: Any) -> None:
-            values = list(kwargs.values())
-            left = _outcome(func, values)
-            right = _outcome(partner, values)
+            left = _outcome(func, kwargs)
+            right = _outcome(partner, kwargs)
             if left != right:
                 raise PropertyViolation(f"differs: target={left!r} reference={right!r}")
 
@@ -187,8 +187,8 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
     raise ValueError(f"unknown property {plan.name}")
 
 
-def _outcome(func: Any, values: list) -> Any:
+def _outcome(func: Any, kwargs: dict) -> Any:
     try:
-        return ("value", func(*values))
+        return ("value", func(**kwargs))
     except Exception as exc:
         return ("raised", type(exc).__name__)

@@ -1,12 +1,12 @@
 CATEGORY = "off_by_one"
 ORACLE = "differential"
-CANONICAL = {"n": 1}
-CANONICAL_SIZE = 1
+CANONICAL = {"lo": 0, "hi": 0}
+CANONICAL_SIZE = 2
 
 
-def buggy(n: int) -> int:
-    return len(range(1, n))
+def buggy(lo: int, hi: int) -> int:
+    return hi - lo
 
 
-def fixed(n: int) -> int:
-    return len(range(1, n + 1))
+def fixed(lo: int, hi: int) -> int:
+    return hi - lo + 1

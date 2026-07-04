@@ -16,12 +16,19 @@ inputs:
   examples:
     description: "Max candidate inputs per function."
     default: "200"
+  diff:
+    description: "Only hunt functions changed vs the base branch."
+    default: "false"
+  base:
+    description: "Base git ref for diff mode."
+    default: "origin/main"
 runs:
   using: "composite"
   steps:
     - uses: astral-sh/setup-uv@v5
     - shell: bash
       run: |
-        FLAGS="--severity ${{ inputs.severity }} --examples ${{ inputs.examples }}"
+        FLAGS="--severity ${{ inputs.severity }} --examples ${{ inputs.examples }} --format github"
         if [ "${{ inputs.baseline }}" = "true" ]; then FLAGS="$FLAGS --baseline"; fi
+        if [ "${{ inputs.diff }}" = "true" ]; then FLAGS="$FLAGS --diff --base ${{ inputs.base }}"; fi
         uvx --from git+https://github.com/Falcon305/nightman nightman gate "${{ inputs.path }}" $FLAGS

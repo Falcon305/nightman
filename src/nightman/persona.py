@@ -72,10 +72,11 @@ def _finding_row(result: HuntResult) -> str:
 
 
 def render_scan(report: ScanReport, mode: str = "nightman") -> str:
+    dedup_note = f" ({report.deduped} duplicate crash site(s) collapsed)" if report.deduped else ""
     if mode == "plain":
         head = (
             f"Scanned {report.scanned} function(s) in {report.root} — "
-            f"{len(report.findings)} broke, {report.clean} held, grade {report.grade}."
+            f"{len(report.findings)} broke, {report.clean} held, grade {report.grade}.{dedup_note}"
         )
         return "\n".join([head, *(_finding_row(r) for r in report.findings)])
 
@@ -85,7 +86,7 @@ def render_scan(report: ScanReport, mode: str = "nightman") -> str:
             f"and not one of them broke. Grade {report.grade}."
         )
     header = [
-        f"🌙 THE NIGHTMAN CAME FOR {report.scanned} FUNCTION(S). He broke {len(report.findings)}.",
+        f"🌙 THE NIGHTMAN CAME FOR {report.scanned} FUNCTION(S). He broke {len(report.findings)}.{dedup_note}",
         f"   Grade {report.grade}. Worst first:",
     ]
     body = [_finding_row(r) for r in report.findings[:20]]

@@ -40,12 +40,29 @@ def _cmd_harden(args: argparse.Namespace) -> int:
     return 1 if result.status == "failing" else 0
 
 
+def _diff_base(args: argparse.Namespace) -> str | None:
+    return args.base if getattr(args, "diff", False) else None
+
+
 def _cmd_scan(args: argparse.Namespace) -> int:
     from .sweep import sweep
 
     mode = "plain" if args.plain else "nightman"
-    report = sweep(args.path, seed=args.seed, max_examples=args.examples, workers=args.workers, mode=mode)
-    if args.json:
+    report = sweep(
+        args.path,
+        seed=args.seed,
+        max_examples=args.examples,
+        workers=args.workers,
+        mode=mode,
+        diff_base=_diff_base(args),
+    )
+    if args.format == "github":
+        from .annotate import to_github
+
+        annotations = to_github(report.findings)
+        if annotations:
+            print(annotations)
+    elif args.json:
         print(json.dumps(report.model_dump(), indent=2, default=str))
     else:
         print(report.report)
@@ -56,12 +73,24 @@ def _cmd_gate(args: argparse.Namespace) -> int:
     from .baseline import filter_new, load_baseline
     from .sweep import sweep
 
-    report = sweep(args.path, seed=args.seed, max_examples=args.examples, workers=args.workers, mode="plain")
+    report = sweep(
+        args.path,
+        seed=args.seed,
+        max_examples=args.examples,
+        workers=args.workers,
+        mode="plain",
+        diff_base=_diff_base(args),
+    )
     findings = report.findings
     if args.baseline:
         findings = filter_new(findings, load_baseline(args.path))
     blocking = [r for r in findings if r.failure and r.failure.severity >= args.severity]
     if blocking:
+        if args.format == "github":
+            from .annotate import to_github
+
+            print(to_github(blocking))
+            return 1
         scope = "new " if args.baseline else ""
         print(f"Nightman: {len(blocking)} {scope}blocking finding(s) — he got in.")
         for result in blocking:
@@ -135,6 +164,8 @@ def _add_scan_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--seed", type=int, default=0, help="RNG seed for reproducibility.")
     parser.add_argument("--examples", type=int, default=200, help="Max candidate inputs per function.")
     parser.add_argument("--workers", type=int, default=4, help="How many functions to hunt in parallel.")
+    parser.add_argument("--diff", action="store_true", help="Only hunt functions changed vs the base branch.")
+    parser.add_argument("--base", default="origin/main", help="Base git ref for --diff (default origin/main).")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -159,12 +190,18 @@ def build_parser() -> argparse.ArgumentParser:
     _add_scan_args(scan)
     scan.add_argument("--plain", action="store_true", help="Flavor-free output.")
     scan.add_argument("--json", action="store_true", help="Machine-readable JSON output.")
+    scan.add_argument(
+        "--format", choices=("text", "github"), default="text", help="Output format (github = PR annotations)."
+    )
     scan.set_defaults(func=_cmd_scan)
 
     gate = sub.add_parser("gate", help="Scan and fail (exit 1) on findings — for CI.")
     _add_scan_args(gate)
     gate.add_argument("--baseline", action="store_true", help="Only fail on findings not in the baseline.")
     gate.add_argument("--severity", type=int, default=4, help="Minimum severity that blocks (default 4).")
+    gate.add_argument(
+        "--format", choices=("text", "github"), default="text", help="Output format (github = PR annotations)."
+    )
     gate.set_defaults(func=_cmd_gate)
 
     base = sub.add_parser("baseline", help="Snapshot current findings so only new ones fail later.")

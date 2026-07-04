@@ -69,6 +69,7 @@ class ScanReport(BaseModel):
     errors: int = Field(description="functions that could not be hunted")
     findings: list[HuntResult] = Field(description="failing functions, ranked worst first")
     counts: dict[str, int] = Field(default_factory=dict, description="finding counts by confidence tier")
+    deduped: int = Field(default=0, description="findings collapsed as duplicates of the same crash site")
     grade: str = Field(description="A to F, based on how many functions broke")
 
 

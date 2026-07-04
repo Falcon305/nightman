@@ -56,11 +56,11 @@ $ nightman scan src/
   [3/heuristic] load_rows          ValueError          load_rows(path='')
 ```
 
-Every finding carries a **category, a severity (1–5), and a confidence tier** — `verified` means Nightman replayed the minimal input and it reproduced every time. Tune what he chases with `[tool.nightman]` in `pyproject.toml`: exclude globs, a `min_confidence` floor, and per-function `allow` lists so an *intended* exception is never re-flagged.
+Every finding carries a **category, a severity (1–5), and a confidence tier** — `verified` means Nightman replayed the minimal input and it reproduced every time. When several functions crash at the same underlying line, he **collapses them into one finding** so the report stays signal. Tune what he chases with `[tool.nightman]` in `pyproject.toml`: exclude globs, a `min_confidence` floor, and per-function `allow` lists so an *intended* exception is never re-flagged.
 
 ## Fail CI only on new crashes
 
-`nightman gate` scans and exits non-zero when something breaks — and with a committed baseline it fails a PR **only on crashes that PR introduced**, never the legacy backlog. Drop the Action into a workflow:
+`nightman gate` scans and exits non-zero when something breaks — and with a committed baseline it fails a PR **only on crashes that PR introduced**, never the legacy backlog. On a big repo, `--diff` hunts **only the functions the PR actually touched** (against `git merge-base`), turning a nightly-only scan into a per-PR check that finishes in seconds. Drop the Action into a workflow:
 
 ```yaml
 - uses: Falcon305/nightman@master
@@ -68,9 +68,10 @@ Every finding carries a **category, a severity (1–5), and a confidence tier** 
     path: src/
     severity: "4"
     baseline: "true"
+    diff: "true"        # only hunt what this PR changed
 ```
 
-`nightman sarif -o nightman.sarif` emits SARIF 2.1.0, so findings show up in GitHub's Security tab via `github/codeql-action/upload-sarif`.
+The Action reports findings as **inline PR annotations** (`--format github`) right on the changed lines. And `nightman sarif -o nightman.sarif` emits SARIF 2.1.0, so findings also show up in GitHub's Security tab via `github/codeql-action/upload-sarif`.
 
 ## What it looks like
 
@@ -177,11 +178,11 @@ CI runs ruff + mypy (typed) + pytest + the eval across Python 3.11–3.13. Relea
 
 Where the Nightman is headed next, in rough priority order:
 
-- **`--diff` mode** — hunt only the functions a PR touches (`git merge-base`), so a repo-wide scan runs in seconds on every pull request.
-- **Finding dedup + inline PR annotations** — collapse many inputs crashing at the same line into one finding, and surface them as GitHub `::error::` annotations right where the code changed.
 - **A persistent example database** — sync Hypothesis's corpus across runs so a known failure reproduces instantly and the seed pool compounds over time.
 - **An opt-in CrossHair backend** (`--backend crosshair`) — symbolic execution to reach the exact-constant and narrow-branch bugs random search never hits.
 - **Mutation scoring** — run `mutmut` against the generated regression test and report what fraction of injected mutants it kills, so you can trust the test was worth committing.
+
+Already shipped from the last round: `--diff` PR-only hunting, duplicate crash-site collapsing, and inline GitHub PR annotations.
 
 ## The gang
 

@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480" width="1200" height="480" role="img" aria-label="The Nightman Cometh — a stage with a spotlight on the Nightman">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b1026"/>
+      <stop offset="0.6" stop-color="#141a3a"/>
+      <stop offset="1" stop-color="#1d1030"/>
+    </linearGradient>
+    <radialGradient id="spot" cx="0.5" cy="0" r="0.9">
+      <stop offset="0" stop-color="#fff6cf" stop-opacity="0.85"/>
+      <stop offset="0.4" stop-color="#ffe89a" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#ffe89a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="stage" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a2418"/>
+      <stop offset="1" stop-color="#1c110b"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="480" fill="url(#sky)"/>
+
+  <g fill="#f4e7b0" opacity="0.85">
+    <circle cx="120" cy="70" r="1.6"/>
+    <circle cx="240" cy="40" r="1.1"/>
+    <circle cx="360" cy="90" r="1.4"/>
+    <circle cx="520" cy="55" r="1"/>
+    <circle cx="980" cy="60" r="1.5"/>
+    <circle cx="1080" cy="110" r="1.2"/>
+    <circle cx="860" cy="38" r="1"/>
+    <circle cx="700" cy="80" r="1.2"/>
+  </g>
+  <circle cx="1010" cy="86" r="34" fill="#f7efc4" opacity="0.9"/>
+  <circle cx="998" cy="80" r="34" fill="url(#sky)"/>
+
+  <polygon points="600,0 470,360 730,360" fill="url(#spot)"/>
+
+  <rect x="0" y="360" width="1200" height="120" fill="url(#stage)"/>
+  <rect x="0" y="356" width="1200" height="8" fill="#5a3a24"/>
+
+  <g transform="translate(600 360)">
+    <ellipse cx="0" cy="4" rx="70" ry="12" fill="#000" opacity="0.35"/>
+    <path d="M-34,0 C-40,-64 -30,-150 0,-150 C30,-150 40,-64 34,0 Z" fill="#0c1a14"/>
+    <circle cx="0" cy="-168" r="26" fill="#0c1a14"/>
+    <path d="M-22,-186 L-32,-214 L-10,-196 Z" fill="#0c1a14"/>
+    <path d="M22,-186 L32,-214 L10,-196 Z" fill="#0c1a14"/>
+    <circle cx="-9" cy="-170" r="4.5" fill="#7CFC00"/>
+    <circle cx="9" cy="-170" r="4.5" fill="#7CFC00"/>
+    <path d="M-10,-158 Q0,-150 10,-158" stroke="#7CFC00" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M-34,-92 L-78,-52" stroke="#0c1a14" stroke-width="15" stroke-linecap="round"/>
+    <path d="M34,-92 L80,-120" stroke="#0c1a14" stroke-width="15" stroke-linecap="round"/>
+  </g>
+
+  <g font-family="Georgia, 'Times New Roman', serif" text-anchor="middle">
+    <text x="600" y="150" font-size="64" fill="#ffe89a" letter-spacing="4" font-weight="bold">THE NIGHTMAN COMETH</text>
+    <text x="600" y="196" font-size="24" fill="#cdd3f0" letter-spacing="2" font-style="italic">sneaky and mean — he comes for your untested code</text>
+  </g>
+</svg>

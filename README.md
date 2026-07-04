@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./assets/hero.svg" alt="The Nightman Cometh — he comes for your untested code" width="820" />
+<img src="./assets/nightman-cometh.webp" alt="Charlie performing Dayman in 'The Nightman Cometh'" width="620" />
 
 # Nightman
 
@@ -97,4 +97,4 @@ Each ships as its own standalone tool: **[Charlie Work](https://github.com/Falco
 
 Code: MIT.
 
-The hero is an original illustration. A still from *It's Always Sunny in Philadelphia*'s "The Nightman Cometh" (© FX Networks) may be dropped at `assets/nightman-cometh.jpg` for identification and commentary; it would not be covered by the MIT license and remains the property of its rights holder.
+The hero image is a still from *It's Always Sunny in Philadelphia*'s "The Nightman Cometh" (S4E13, © FX Networks), used here for identification and commentary. It is not covered by the MIT license and remains the property of its rights holder. An original vector rendition ships at [`assets/hero.svg`](./assets/hero.svg).

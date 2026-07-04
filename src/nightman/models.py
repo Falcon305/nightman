@@ -23,6 +23,7 @@ class Failure(BaseModel):
     confidence: str = Field(default="high", description="verified, high, or heuristic")
     verified: bool = Field(default=False, description="the minimal input was replayed and reproduced the fault")
     fix_hint: str = Field(default="", description="a concrete suggestion for fixing the fault")
+    expected_type: str | None = Field(default=None, description="the annotated return type, for type-contract")
 
 
 class HuntResult(BaseModel):

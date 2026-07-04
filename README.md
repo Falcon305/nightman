@@ -110,8 +110,11 @@ Nightman's value is the orchestration, the sandbox, and the committable artifact
 
 - **Generation + shrinking → [Hypothesis](https://hypothesis.readthedocs.io/).** Its shrinking engine is world-class; Nightman drives it and captures the minimized counterexample.
 - **Strategy inference** from type hints (`from_type`/`builds`), with a fallback ladder for untyped code: docstring types → default values → parameter-name heuristics → a hand-built **chaos corpus** (empty collections, `NaN`/±inf, boundary ints, surrogate/`\x00`/huge strings).
-- **Properties**, strongest-first: a *never-crashes* floor, plus `roundtrip` (`decode(encode(x)) == x`, detected by name pairs), `idempotence`, and a **differential** oracle for comparing a suspect against a reference.
-- **A sandboxed executor** — each hunt runs in a spawned subprocess with CPU/memory limits, so a memory bomb or an infinite loop is capped, and a native **segfault survives as a reported result instead of taking down the run**.
+- **Properties**, strongest-first: a *never-crashes* floor, plus `roundtrip` (`decode(encode(x)) == x`, detected by name pairs), `idempotence`, `commutativity` and `permutation`-invariance (metamorphic, name-gated so they never cry wolf), a `type-contract` check (does the return match its annotation?), and a **differential** oracle for comparing a suspect against a reference.
+- **A sandboxed executor** — each hunt runs in a spawned subprocess with CPU/memory limits, so a memory bomb or an infinite loop is capped, and a native **segfault survives as a reported result instead of taking down the run**. Child processes are always reaped, so a repo-wide scan never leaks a runaway interpreter.
+- **Handles the awkward shapes** — `async def` functions are awaited, generators are drained, and positional-only parameters are called correctly, so the body actually runs instead of a coroutine or generator object slipping through untested.
+
+Every emitted regression test is pinned to the Nightman and seed that found it, and renders exotic inputs faithfully — `float('nan')`, `float('inf')`, and nested containers round-trip to valid, importable Python.
 
 ## Proving it works — the eval
 
@@ -158,7 +161,7 @@ Nightman is also an MCP server, so an agent can hunt bugs and write regression t
 }
 ```
 
-It exposes six structured-output tools — `nightman_infer_inputs`, `nightman_hunt`, `nightman_harden`, `nightman_write_regression_test`, `nightman_explain` (root-cause + severity), and `nightman_scan` (whole-repo sweep) — plus a `harden_function` prompt that scripts the whole loop. Then: *"Harden `parse` in parser.py — find how it breaks, fix it, and leave a regression test."*
+It exposes six structured-output tools — `nightman_infer_inputs`, `nightman_hunt`, `nightman_harden`, `nightman_write_regression_test`, `nightman_explain` (root-cause + severity), and `nightman_scan` (whole-repo sweep) — plus a `harden_function` prompt that scripts the whole loop. Each tool carries a human-readable title and behavioral annotations (the five read-only tools are marked `readOnlyHint`, so a well-behaved client won't nag for confirmation), and the server ships workflow `instructions` that teach an agent to chain hunt → explain → write-test and to respect allow-lists. Then: *"Harden `parse` in parser.py — find how it breaks, fix it, and leave a regression test."*
 
 ## Development
 
@@ -169,6 +172,16 @@ uv run python evals/run.py
 ```
 
 CI runs ruff + mypy (typed) + pytest + the eval across Python 3.11–3.13. Releases publish to PyPI via OIDC Trusted Publishing.
+
+## Roadmap
+
+Where the Nightman is headed next, in rough priority order:
+
+- **`--diff` mode** — hunt only the functions a PR touches (`git merge-base`), so a repo-wide scan runs in seconds on every pull request.
+- **Finding dedup + inline PR annotations** — collapse many inputs crashing at the same line into one finding, and surface them as GitHub `::error::` annotations right where the code changed.
+- **A persistent example database** — sync Hypothesis's corpus across runs so a known failure reproduces instantly and the seed pool compounds over time.
+- **An opt-in CrossHair backend** (`--backend crosshair`) — symbolic execution to reach the exact-constant and narrow-branch bugs random search never hits.
+- **Mutation scoring** — run `mutmut` against the generated regression test and report what fraction of injected mutants it kills, so you can trust the test was worth committing.
 
 ## The gang
 

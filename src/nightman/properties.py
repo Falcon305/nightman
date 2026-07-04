@@ -1,20 +1,48 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 import re
 from collections.abc import Callable
+from itertools import islice
 from typing import Any, get_origin, get_type_hints
 
 from .models import PropertyPlan
 from .target import Target
 
 _COMMUTATIVE_NAMES = (
-    "add", "plus", "sum", "combine", "merge", "union", "intersect",
-    "max", "min", "gcd", "lcm", "mul", "multiply", "times", "product", "meet", "overlap",
+    "add",
+    "plus",
+    "sum",
+    "combine",
+    "merge",
+    "union",
+    "intersect",
+    "max",
+    "min",
+    "gcd",
+    "lcm",
+    "mul",
+    "multiply",
+    "times",
+    "product",
+    "meet",
+    "overlap",
 )
 _ORDER_FREE_NAMES = (
-    "sum", "max", "maximum", "min", "minimum", "mean", "average", "avg",
-    "total", "product", "count", "median", "mode",
+    "sum",
+    "max",
+    "maximum",
+    "min",
+    "minimum",
+    "mean",
+    "average",
+    "avg",
+    "total",
+    "product",
+    "count",
+    "median",
+    "mode",
 )
 _CONTAINER_TYPES = {
     list: "list",
@@ -167,9 +195,7 @@ def choose_properties(target: Target, siblings: dict[str, Any]) -> list[Property
     container = _return_container(func)
     if container:
         plans.append(
-            PropertyPlan(
-                name="type-contract", allowed_exceptions=allowed, description=f"returns a {container}"
-            )
+            PropertyPlan(name="type-contract", allowed_exceptions=allowed, description=f"returns a {container}")
         )
     plans.append(
         PropertyPlan(
@@ -189,10 +215,51 @@ def _allowed_tuple(names: list[str]) -> frozenset[str]:
     return frozenset(names)
 
 
+def is_method(func: Any) -> bool:
+    try:
+        params = list(inspect.signature(func).parameters)
+    except (ValueError, TypeError):
+        return False
+    return bool(params) and params[0] == "self" and not inspect.ismethod(func)
+
+
+def _positional_only(func: Any) -> list[str]:
+    try:
+        parameters = inspect.signature(func).parameters
+    except (ValueError, TypeError):
+        return []
+    return [name for name, p in parameters.items() if p.kind == p.POSITIONAL_ONLY]
+
+
+def _invoker(func: Any) -> Callable[[dict], Any]:
+    positional = _positional_only(func)
+    is_coroutine = inspect.iscoroutinefunction(func)
+
+    def _drain(value: Any) -> Any:
+        if inspect.isgenerator(value):
+            return list(islice(value, 1000))
+        return value
+
+    def call(kwargs: dict) -> Any:
+        if positional:
+            args = [kwargs[name] for name in positional if name in kwargs]
+            rest = {name: value for name, value in kwargs.items() if name not in positional}
+            outcome = func(*args, **rest)
+        else:
+            outcome = func(**kwargs)
+        if is_coroutine:
+            return _drain(asyncio.run(outcome))
+        return _drain(outcome)
+
+    return call
+
+
 def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[..., None]:
     allowed = _allowed_tuple(plan.allowed_exceptions)
     names = _required_positional(func)
     first_arg = names[0] if names else None
+    call = _invoker(func)
+    partner_call = _invoker(partner) if partner is not None else None
 
     def _guard(exc: BaseException) -> bool:
         return type(exc).__name__ in allowed
@@ -201,7 +268,7 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
 
         def check_never(**kwargs: Any) -> None:
             try:
-                func(**kwargs)
+                call(kwargs)
             except Exception as exc:
                 if _guard(exc):
                     return
@@ -213,11 +280,11 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
 
         def check_idempotent(**kwargs: Any) -> None:
             try:
-                first = func(**kwargs)
+                first = call(kwargs)
                 feedback = dict(kwargs)
                 if first_arg is not None:
                     feedback[first_arg] = first
-                second = func(**feedback)
+                second = call(feedback)
             except Exception as exc:
                 if _guard(exc):
                     return
@@ -230,11 +297,11 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
     if plan.name == "roundtrip":
 
         def check_roundtrip(**kwargs: Any) -> None:
-            if first_arg is None or partner is None:
+            if first_arg is None or partner_call is None:
                 return
             value = kwargs[first_arg]
             try:
-                decoded = partner(func(**kwargs))
+                decoded = partner_call({partner_first(partner): call(kwargs)})
             except Exception as exc:
                 if _guard(exc):
                     return
@@ -247,10 +314,10 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
     if plan.name == "differential":
 
         def check_differential(**kwargs: Any) -> None:
-            if partner is None:
+            if partner_call is None:
                 return
-            left = _outcome(func, kwargs)
-            right = _outcome(partner, kwargs)
+            left = _outcome(call, kwargs)
+            right = _outcome(partner_call, kwargs)
             if left != right:
                 raise PropertyViolation(f"differs: target={left!r} reference={right!r}")
 
@@ -259,10 +326,11 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
     if plan.name == "commutative":
 
         def check_commutative(**kwargs: Any) -> None:
-            values = list(kwargs.values())
+            keys = list(kwargs)
+            swapped = {keys[0]: kwargs[keys[1]], keys[1]: kwargs[keys[0]]}
             try:
-                forward = func(**kwargs)
-                backward = func(*reversed(values))
+                forward = call(kwargs)
+                backward = call(swapped)
             except Exception as exc:
                 if _guard(exc):
                     return
@@ -275,13 +343,13 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
     if plan.name == "permutation":
 
         def check_permutation(**kwargs: Any) -> None:
-            values = list(kwargs.values())
-            sequence = values[0]
-            if not isinstance(sequence, (list, tuple)):
+            first_key = next(iter(kwargs), None)
+            if first_key is None or not isinstance(kwargs[first_key], (list, tuple)):
                 return
+            reversed_kwargs = {**kwargs, first_key: list(reversed(kwargs[first_key]))}
             try:
-                base = func(**kwargs)
-                shuffled = func(*[list(reversed(sequence)), *values[1:]])
+                base = call(kwargs)
+                shuffled = call(reversed_kwargs)
             except Exception as exc:
                 if _guard(exc):
                     return
@@ -297,14 +365,15 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
 
         def check_type_contract(**kwargs: Any) -> None:
             try:
-                result = func(**kwargs)
+                result = call(kwargs)
             except Exception as exc:
                 if _guard(exc):
                     return
                 raise
             if expected is not None and not isinstance(result, expected):
                 raise PropertyViolation(
-                    f"returned {type(result).__name__}, but annotated to return {getattr(expected, '__name__', expected)}"
+                    f"returned {type(result).__name__}, but annotated to return "
+                    f"{getattr(expected, '__name__', expected)}"
                 )
 
         return check_type_contract
@@ -312,8 +381,13 @@ def build_check(func: Any, plan: PropertyPlan, partner: Any | None) -> Callable[
     raise ValueError(f"unknown property {plan.name}")
 
 
-def _outcome(func: Any, kwargs: dict) -> Any:
+def partner_first(partner: Any) -> str:
+    names = _required_positional(partner)
+    return names[0] if names else "value"
+
+
+def _outcome(call: Callable[[dict], Any], kwargs: dict) -> Any:
     try:
-        return ("value", func(**kwargs))
+        return ("value", call(kwargs))
     except Exception as exc:
         return ("raised", type(exc).__name__)

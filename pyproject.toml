@@ -1,6 +1,6 @@
 [project]
 name = "nightman"
-version = "0.1.0"
+version = "0.2.0"
 description = "The Nightman comes for your untested code — finds a real crash and hands you the minimal pytest regression test that proves it."
 readme = "README.md"
 requires-python = ">=3.11"

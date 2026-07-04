@@ -8,7 +8,7 @@ from hypothesis import HealthCheck, given, seed, settings
 from .config import Config, load_config
 from .infer import kwargs_strategy
 from .models import Failure, HuntResult, Location, PropertyPlan
-from .properties import build_check, choose_properties
+from .properties import build_check, choose_properties, is_method
 from .sandbox import call_timeout, run_in_subprocess
 from .severity import classify, fix_hint
 from .target import load_target, reload_from_origin, sibling_functions
@@ -116,6 +116,7 @@ def _run_property(
     category, severity, confidence = classify(
         "property" if is_property else "crash", plan.name, exc_type, verified
     )
+    expected_type = _expected_return(func) if plan.name == "type-contract" else None
     failure = Failure(
         kind="property" if is_property else "crash",
         property=plan.name,
@@ -130,6 +131,7 @@ def _run_property(
         confidence=confidence,
         verified=verified,
         fix_hint=fix_hint(category),
+        expected_type=expected_type,
     )
     first_fail = stats["first_fail"] or stats["execs"]
     return HuntResult(
@@ -143,6 +145,19 @@ def _run_property(
         shrink_executions=max(0, stats["execs"] - first_fail),
         failure=failure,
     )
+
+
+def _expected_return(func: Any) -> str | None:
+    from typing import get_origin, get_type_hints
+
+    try:
+        ret = get_type_hints(func).get("return")
+    except Exception:
+        return None
+    if ret is None:
+        return None
+    origin = get_origin(ret) or ret
+    return getattr(origin, "__name__", None)
 
 
 def _reproduces(check: Any, kwargs: dict, per_example: float) -> bool:
@@ -203,6 +218,12 @@ def hunt(
     config: Config | None = None,
 ) -> HuntResult:
     target = load_target(spec)
+    if is_method(target.func):
+        return HuntResult(
+            target=spec,
+            status="error",
+            message="methods aren't supported yet — point Nightman at a plain function",
+        )
     resolved = config or load_config()
     if plans is None:
         plans = choose_properties(target, sibling_functions(target))

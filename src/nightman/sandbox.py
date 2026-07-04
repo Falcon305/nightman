@@ -70,24 +70,28 @@ def run_in_subprocess(
     proc = ctx.Process(target=_child, args=(child_conn, func, args, cpu_s, mem_mb))
     proc.start()
     child_conn.close()
-    if parent_conn.poll(wall_s):
-        try:
-            payload = parent_conn.recv()
-        except EOFError:
-            payload = None
-        proc.join(2)
-        if payload and payload[0] == "ok":
-            return SandboxOutcome("ok", value=payload[1], exitcode=proc.exitcode)
-        if payload and payload[0] == "raised":
-            return SandboxOutcome("raised", exc_type=payload[1], exc_msg=payload[2], exitcode=proc.exitcode)
-        code = proc.exitcode
-        return SandboxOutcome("crash", exitcode=code, signal=-code if code and code < 0 else None)
-    proc.terminate()
-    proc.join(2)
-    if proc.is_alive():
-        proc.kill()
-        proc.join()
-    return SandboxOutcome("timeout", exitcode=proc.exitcode)
+    try:
+        if parent_conn.poll(wall_s):
+            try:
+                payload = parent_conn.recv()
+            except EOFError:
+                payload = None
+            proc.join(2)
+            if payload and payload[0] == "ok":
+                return SandboxOutcome("ok", value=payload[1], exitcode=proc.exitcode)
+            if payload and payload[0] == "raised":
+                return SandboxOutcome("raised", exc_type=payload[1], exc_msg=payload[2], exitcode=proc.exitcode)
+            code = proc.exitcode
+            return SandboxOutcome("crash", exitcode=code, signal=-code if code and code < 0 else None)
+        return SandboxOutcome("timeout", exitcode=proc.exitcode)
+    finally:
+        parent_conn.close()
+        if proc.is_alive():
+            proc.terminate()
+            proc.join(1)
+        if proc.is_alive():
+            proc.kill()
+            proc.join()
 
 
 @contextlib.contextmanager

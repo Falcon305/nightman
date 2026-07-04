@@ -83,11 +83,60 @@ Nightman's value is the orchestration, the sandbox, and the committable artifact
 
 ## Proving it works — the eval
 
-Novelty isn't the moat (Anthropic and AWS have both shown agents can do this); a *trustworthy, packaged* tool is. So Nightman ships a reproducible eval over a corpus of **planted bugs** — off-by-one, empty-input, unicode, unsafe `eval`, integer truncation, runaway recursion, and more. For each it measures detection, repro minimality, and time-to-first-failure — and critically, **runs the same hunt against the *fixed* code and requires zero false positives**. (Scorecard lands with v0.1 as the eval is finalized.)
+Novelty isn't the moat (Anthropic and AWS have both shown agents can do this); a *trustworthy, packaged* tool is. So Nightman ships a reproducible, seeded eval over a corpus of **planted bugs** — off-by-one, empty-input, unicode, unsafe `eval`, integer truncation, runaway recursion, and more. For each it measures detection, repro minimality, and time-to-first-failure — and critically, **runs the same hunt against the *fixed* code and requires zero false positives** (the first thing a skeptic checks).
 
-## Status
+```
+$ python evals/run.py
+Nightman eval — 10 planted bugs, 4 seeds each
 
-**v0.1, in progress.** The engine — infer → hunt → shrink → sandbox → emit — works today via the CLI. Landing next: the finalized eval scorecard, the MCP server (`nightman serve`, with `hunt`/`shrink`/`harden` tools), and production polish (typed, CI across 3.11–3.13, PyPI). Follow along; it's pushed as it's built.
+category             oracle        detect  trials  min|canon  ttff   fp
+-----------------------------------------------------------------------
+boundary_index       crash         yes     4/4     0|0        1      -
+comparison_flip      differential  yes     4/4     3|2        7      -
+empty_input          crash         yes     4/4     0|0        1      -
+integer_truncation   differential  yes     4/4     4|2        3      -
+off_by_one           crash         yes     4/4     1|1        1      -
+off_by_one           differential  yes     4/4     2|2        1      -
+recursion            crash         yes     4/4     6|1        2      -
+type_coercion        crash         yes     4/4     1|1        1      -
+unicode_edge         crash         yes     4/4     1|1        2      -
+unsafe_eval          crash         yes     4/4     0|0        1      -
+
+detection_rate      : 100%  (10/10)
+false_positive_rate : 0%   (must be 0%)
+median minimal input: 1.0
+median TTFF (execs) : 1.0
+RESULT: PASS
+```
+
+Every planted bug found, every one shrunk to a near-minimal input, and **not one false alarm on the fixed code**.
+
+## For your coding agent (MCP)
+
+Nightman is also an MCP server, so an agent can hunt bugs and write regression tests itself. Point Claude Desktop / Cursor / Claude Code at it:
+
+```json
+{
+  "mcpServers": {
+    "nightman": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/Falcon305/nightman", "nightman", "serve"]
+    }
+  }
+}
+```
+
+It exposes `nightman_infer_inputs`, `nightman_hunt`, `nightman_harden`, and `nightman_write_regression_test` (structured output), plus a `harden_function` prompt that scripts the whole loop. Then: *"Harden `parse` in parser.py — find how it breaks, fix it, and leave a regression test."*
+
+## Development
+
+```bash
+uv sync --extra dev
+uv run ruff check . && uv run mypy && uv run pytest -q
+uv run python evals/run.py
+```
+
+CI runs ruff + mypy (typed) + pytest + the eval across Python 3.11–3.13. Releases publish to PyPI via OIDC Trusted Publishing.
 
 ## The gang
 

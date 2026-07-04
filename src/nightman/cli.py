@@ -41,8 +41,15 @@ def _cmd_harden(args: argparse.Namespace) -> int:
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
+    import logging
+
     from .server import mcp
 
+    logging.basicConfig(
+        level=logging.INFO,
+        stream=sys.stderr,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
     mcp.run(transport="streamable-http" if args.http else "stdio")
     return 0
 

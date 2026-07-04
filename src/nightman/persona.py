@@ -37,20 +37,22 @@ def render_hunt(result: HuntResult, mode: str = "nightman") -> str:
     if mode == "plain":
         lines = [
             f"FAIL: {func} — {verdict}",
-            f"  input:    {failure.args_repr}",
-            f"  detail:   {failure.message}{where}",
-            f"  property: {result.property}",
-            f"  size:     {failure.input_size} (found at execution {result.executions_to_first_failure})",
+            f"  input:      {failure.args_repr}",
+            f"  detail:     {failure.message}{where}",
+            f"  category:   {failure.category} (severity {failure.severity}/5, {failure.confidence})",
+            f"  size:       {failure.input_size} (found at execution {result.executions_to_first_failure})",
         ]
         return "\n".join(lines)
 
     shrink_note = ""
     if result.shrink_executions:
         shrink_note = f"\n   shrunk to its smallest form in {result.shrink_executions} more."
+    verified_note = " (replayed — it reproduces)" if failure.verified else ""
     lines = [
         "🌙 THE NIGHTMAN COMETH.",
         f"   He came for {func}() with:  {failure.args_repr}",
         f"   → {verdict}: {failure.message}{where}",
+        f"   {failure.category}, severity {failure.severity}/5, {failure.confidence} confidence{verified_note}.",
         f"   found on try #{result.executions_to_first_failure}.{shrink_note}",
     ]
     return "\n".join(lines)

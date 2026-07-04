@@ -18,6 +18,11 @@ class Failure(BaseModel):
     args_repr: str = Field(description="source-reconstructable call, e.g. parse(text='')")
     input_size: int = Field(description="scalar size of the minimal input")
     location: Location | None = Field(default=None, description="where the failure surfaced")
+    category: str = Field(default="crash", description="taxonomy of the fault, e.g. boundary or wrong-result")
+    severity: int = Field(default=4, ge=1, le=5, description="1 low to 5 high")
+    confidence: str = Field(default="high", description="verified, high, or heuristic")
+    verified: bool = Field(default=False, description="the minimal input was replayed and reproduced the fault")
+    fix_hint: str = Field(default="", description="a concrete suggestion for fixing the fault")
 
 
 class HuntResult(BaseModel):
@@ -43,6 +48,16 @@ class HardenResult(BaseModel):
     result: HuntResult
     test_source: str | None = Field(default=None, description="the rendered pytest regression test")
     wrote: str | None = Field(default=None, description="path the regression test was written to")
+
+
+class Explanation(BaseModel):
+    target: str
+    found: bool
+    report: str = Field(description="human-readable root-cause narrative")
+    category: str = ""
+    severity: int = 0
+    confidence: str = ""
+    fix_hint: str = ""
 
 
 class PropertyPlan(BaseModel):

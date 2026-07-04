@@ -5,10 +5,12 @@ from typing import Any
 
 from hypothesis import HealthCheck, given, seed, settings
 
+from .config import Config, load_config
 from .infer import kwargs_strategy
 from .models import Failure, HuntResult, Location, PropertyPlan
 from .properties import build_check, choose_properties
 from .sandbox import call_timeout, run_in_subprocess
+from .severity import classify, fix_hint
 from .target import load_target, reload_from_origin, sibling_functions
 
 _ENGINE_FILES = ("properties.py", "hunt.py", "sandbox.py", "infer.py")
@@ -109,15 +111,25 @@ def _run_property(
     kwargs = captured["kwargs"]
     exc = captured["exc"]
     is_property = type(exc).__name__ == "PropertyViolation"
+    exc_type = None if is_property else type(exc).__name__
+    verified = _reproduces(check, kwargs, per_example)
+    category, severity, confidence = classify(
+        "property" if is_property else "crash", plan.name, exc_type, verified
+    )
     failure = Failure(
         kind="property" if is_property else "crash",
         property=plan.name,
-        exception_type=None if is_property else type(exc).__name__,
+        exception_type=exc_type,
         message=str(exc),
         args=_reprable(kwargs),
         args_repr=_args_repr(getattr(func, "__name__", "f"), kwargs),
         input_size=_kwargs_size(kwargs),
         location=_location(exc),
+        category=category,
+        severity=severity,
+        confidence=confidence,
+        verified=verified,
+        fix_hint=fix_hint(category),
     )
     first_fail = stats["first_fail"] or stats["execs"]
     return HuntResult(
@@ -131,6 +143,15 @@ def _run_property(
         shrink_executions=max(0, stats["execs"] - first_fail),
         failure=failure,
     )
+
+
+def _reproduces(check: Any, kwargs: dict, per_example: float) -> bool:
+    try:
+        with call_timeout(per_example):
+            check(**kwargs)
+    except Exception:
+        return True
+    return False
 
 
 def _reprable(kwargs: dict) -> dict:
@@ -179,10 +200,16 @@ def hunt(
     wall_s: float = 30.0,
     mem_mb: int = 2048,
     cpu_s: int = 12,
+    config: Config | None = None,
 ) -> HuntResult:
     target = load_target(spec)
+    resolved = config or load_config()
     if plans is None:
         plans = choose_properties(target, sibling_functions(target))
+    allowed = resolved.allowed_for(target.qualname.split(".")[-1])
+    if allowed:
+        for plan in plans:
+            plan.allowed_exceptions = sorted(set(plan.allowed_exceptions) | set(allowed))
     worker_spec = {
         "origin_kind": target.origin.kind,
         "origin_ref": target.origin.ref,

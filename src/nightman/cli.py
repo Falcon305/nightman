@@ -40,6 +40,14 @@ def _cmd_harden(args: argparse.Namespace) -> int:
     return 1 if result.status == "failing" else 0
 
 
+def _cmd_explain(args: argparse.Namespace) -> int:
+    from .explain import explain
+
+    explanation = explain(args.target, seed=args.seed, max_examples=args.examples)
+    print(explanation.report)
+    return 1 if explanation.found else 0
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     import logging
 
@@ -76,6 +84,10 @@ def build_parser() -> argparse.ArgumentParser:
     harden.add_argument("--write", action="store_true", help="Write the regression test to disk.")
     harden.add_argument("--root", default=".", help="Repo root to write the test into.")
     harden.set_defaults(func=_cmd_harden)
+
+    explain_cmd = sub.add_parser("explain", help="Hunt a function and explain the failure in plain language.")
+    _add_hunt_args(explain_cmd)
+    explain_cmd.set_defaults(func=_cmd_explain)
 
     serve = sub.add_parser("serve", help="Run the MCP server.")
     serve.add_argument("--http", action="store_true", help="Serve over streamable-http instead of stdio.")

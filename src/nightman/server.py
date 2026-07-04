@@ -3,9 +3,10 @@ from __future__ import annotations
 from mcp.server.fastmcp import FastMCP
 
 from .emit import render_regression_test, write_regression_test
+from .explain import explain
 from .hunt import hunt
 from .infer import describe_strategies
-from .models import HardenResult, HuntResult, InferResult
+from .models import Explanation, HardenResult, HuntResult, InferResult
 from .properties import choose_properties
 from .target import load_target, sibling_functions
 
@@ -56,6 +57,14 @@ def nightman_write_regression_test(
     path = write_regression_test(result, root=root, partner=result.partner)
     source = render_regression_test(result, partner=result.partner)
     return HardenResult(result=result, test_source=source, wrote=path)
+
+
+@mcp.tool()
+def nightman_explain(target: str, seed: int = 0, max_examples: int = 300) -> Explanation:
+    """Hunt a function and explain the failure in plain language: the minimal input, the
+    exception, a category and severity, whether it was replayed to confirm it reproduces,
+    and a concrete fix hint. Use this to understand *why* a function is fragile."""
+    return explain(target, seed=seed, max_examples=max_examples)
 
 
 @mcp.prompt()

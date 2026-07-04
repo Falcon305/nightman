@@ -136,6 +136,17 @@ def _cmd_explain(args: argparse.Namespace) -> int:
     return 1 if explanation.found else 0
 
 
+def _cmd_score(args: argparse.Namespace) -> int:
+    from .score import score
+
+    result = score(args.target, seed=args.seed, max_examples=args.examples)
+    if args.json:
+        print(json.dumps(result.model_dump(), indent=2, default=str))
+    else:
+        print(result.report)
+    return 0
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     import logging
 
@@ -185,6 +196,13 @@ def build_parser() -> argparse.ArgumentParser:
     explain_cmd = sub.add_parser("explain", help="Hunt a function and explain the failure in plain language.")
     _add_hunt_args(explain_cmd)
     explain_cmd.set_defaults(func=_cmd_explain)
+
+    score_cmd = sub.add_parser("score", help="Mutation-score a function: how many injected bugs Nightman catches.")
+    score_cmd.add_argument("target", help="module:function or path/to/file.py:function")
+    score_cmd.add_argument("--seed", type=int, default=0, help="RNG seed for reproducibility.")
+    score_cmd.add_argument("--examples", type=int, default=150, help="Max inputs tried per mutant.")
+    score_cmd.add_argument("--json", action="store_true", help="Machine-readable JSON output.")
+    score_cmd.set_defaults(func=_cmd_score)
 
     scan = sub.add_parser("scan", help="Hunt every public function under a path and rank what breaks.")
     _add_scan_args(scan)

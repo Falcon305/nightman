@@ -7,8 +7,9 @@ from .emit import render_regression_test, write_regression_test
 from .explain import explain
 from .hunt import hunt
 from .infer import describe_strategies
-from .models import Explanation, HardenResult, HuntResult, InferResult, ScanReport
+from .models import Explanation, HardenResult, HuntResult, InferResult, MutationScore, ScanReport
 from .properties import choose_properties
+from .score import score
 from .sweep import sweep
 from .target import load_target, sibling_functions
 
@@ -89,6 +90,16 @@ def nightman_scan(path: str, seed: int = 0, max_examples: int = 200) -> ScanRepo
     break, ranked worst-first by severity and confidence, with an overall grade. Point this at a
     repo to find the crashes hiding across the whole codebase in one shot."""
     return sweep(path, seed=seed, max_examples=max_examples, mode="plain")
+
+
+@mcp.tool(title="Mutation-score a function's test coverage", annotations=_READ_ONLY)
+def nightman_score(target: str, seed: int = 0, max_examples: int = 150) -> MutationScore:
+    """Measure how thoroughly Nightman can guard a function: inject standard mutations
+    (flipped operators, off-by-one constants, swapped comparisons) and report the fraction
+    Nightman catches by finding an input that tells the mutant apart from the original.
+    A high score means a Nightman-written regression test would notice a real regression;
+    survivors reveal behaviour that is currently indistinguishable and may need a stronger test."""
+    return score(target, seed=seed, max_examples=max_examples)
 
 
 @mcp.prompt()

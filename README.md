@@ -147,6 +147,20 @@ RESULT: PASS
 
 Every planted bug found, every one shrunk to a near-minimal input, and **not one false alarm on the fixed code**.
 
+## Are the generated tests actually any good?
+
+A regression test is only worth committing if it would *catch a regression*. `nightman score` proves it does — it injects standard mutations into your function (flipped operators, off-by-one constants, swapped comparisons) and reports the fraction Nightman catches by finding an input that tells the mutant apart from the original:
+
+```
+$ nightman score src/pricing.py:total
+
+🌙 Mutation score for src/pricing.py:total: 92% — Nightman caught 11 of 12 injected mutations.
+   Survivors (behaviour Nightman could not distinguish):
+     - line 7: integer 0 to 1
+```
+
+A high score means a Nightman-written test would notice if someone broke the logic; a survivor points at behaviour that isn't pinned down yet. Writing this feature is also how Nightman got sharper — the scorer caught that the input generator was under-sampling small boundaries like `1` and `2`, so those are now probed on every typed `int` and `float`, and off-by-one bugs surface more reliably.
+
 ## For your coding agent (MCP)
 
 Nightman is also an MCP server, so an agent can hunt bugs and write regression tests itself. Point Claude Desktop / Cursor / Claude Code at it:
@@ -162,7 +176,7 @@ Nightman is also an MCP server, so an agent can hunt bugs and write regression t
 }
 ```
 
-It exposes six structured-output tools — `nightman_infer_inputs`, `nightman_hunt`, `nightman_harden`, `nightman_write_regression_test`, `nightman_explain` (root-cause + severity), and `nightman_scan` (whole-repo sweep) — plus a `harden_function` prompt that scripts the whole loop. Each tool carries a human-readable title and behavioral annotations (the five read-only tools are marked `readOnlyHint`, so a well-behaved client won't nag for confirmation), and the server ships workflow `instructions` that teach an agent to chain hunt → explain → write-test and to respect allow-lists. Then: *"Harden `parse` in parser.py — find how it breaks, fix it, and leave a regression test."*
+It exposes seven structured-output tools — `nightman_infer_inputs`, `nightman_hunt`, `nightman_harden`, `nightman_write_regression_test`, `nightman_explain` (root-cause + severity), `nightman_scan` (whole-repo sweep), and `nightman_score` (mutation score) — plus a `harden_function` prompt that scripts the whole loop. Each tool carries a human-readable title and behavioral annotations (the five read-only tools are marked `readOnlyHint`, so a well-behaved client won't nag for confirmation), and the server ships workflow `instructions` that teach an agent to chain hunt → explain → write-test and to respect allow-lists. Then: *"Harden `parse` in parser.py — find how it breaks, fix it, and leave a regression test."*
 
 ## Development
 
@@ -180,9 +194,8 @@ Where the Nightman is headed next, in rough priority order:
 
 - **A persistent example database** — sync Hypothesis's corpus across runs so a known failure reproduces instantly and the seed pool compounds over time.
 - **An opt-in CrossHair backend** (`--backend crosshair`) — symbolic execution to reach the exact-constant and narrow-branch bugs random search never hits.
-- **Mutation scoring** — run `mutmut` against the generated regression test and report what fraction of injected mutants it kills, so you can trust the test was worth committing.
 
-Already shipped from the last round: `--diff` PR-only hunting, duplicate crash-site collapsing, and inline GitHub PR annotations.
+Already shipped: mutation scoring (`nightman score`), `--diff` PR-only hunting, duplicate crash-site collapsing, and inline GitHub PR annotations.
 
 ## The gang
 

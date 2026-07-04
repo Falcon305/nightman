@@ -73,6 +73,16 @@ class ScanReport(BaseModel):
     grade: str = Field(description="A to F, based on how many functions broke")
 
 
+class MutationScore(BaseModel):
+    target: str
+    total: int = Field(description="mutants that compiled and ran")
+    killed: int = Field(description="mutants Nightman caught by finding a distinguishing input")
+    survived: int = Field(description="mutants Nightman could not tell apart from the original")
+    score: float = Field(description="killed / total, 0.0 to 1.0")
+    survivors: list[str] = Field(default_factory=list, description="descriptions of the surviving mutants")
+    report: str = Field(default="", description="human-readable summary")
+
+
 class PropertyPlan(BaseModel):
     name: str = Field(description="never-raises, idempotent, roundtrip, or differential")
     description: str = ""

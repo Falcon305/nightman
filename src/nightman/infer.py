@@ -20,6 +20,18 @@ CHAOS = st.one_of(
     st.dictionaries(st.text(max_size=8), st.integers()),
 )
 
+_INT_BOUNDARIES = [-2, -1, 0, 1, 2, 3, 10, -10, 255, 256, -256, 2**31, -(2**31), 2**63 - 1]
+_FLOAT_BOUNDARIES = [0.0, 1.0, -1.0, 0.5, -0.5, float("inf"), float("-inf"), float("nan")]
+
+
+def _augment(hint: Any, strategy: Any) -> Any:
+    if hint is int:
+        return st.one_of(st.sampled_from(_INT_BOUNDARIES), strategy)
+    if hint is float:
+        return st.one_of(st.sampled_from(_FLOAT_BOUNDARIES), strategy)
+    return strategy
+
+
 _NAME_HINTS: dict[tuple[str, ...], Any] = {
     ("path", "filename", "filepath", "file", "dir", "directory"): st.text(),
     ("count", "n", "num", "size", "length", "limit", "k"): st.integers(min_value=-1, max_value=10_000),
@@ -86,7 +98,7 @@ def strategies_for(func: Any) -> dict[str, Any]:
             continue
         if name in hints:
             try:
-                plans[name] = st.from_type(hints[name])
+                plans[name] = _augment(hints[name], st.from_type(hints[name]))
                 continue
             except Exception:
                 pass

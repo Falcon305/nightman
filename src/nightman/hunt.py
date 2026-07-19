@@ -238,7 +238,10 @@ def hunt(
     config: Config | None = None,
     backend: str = "random",
 ) -> HuntResult:
-    target = load_target(spec)
+    try:
+        target = load_target(spec)
+    except Exception as exc:
+        return HuntResult(target=spec, status="error", message=f"could not load target: {exc}")
     if is_method(target.func):
         return HuntResult(
             target=spec,

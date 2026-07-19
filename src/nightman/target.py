@@ -36,12 +36,30 @@ def _split_spec(spec: str) -> tuple[str, str]:
     return ref, qualname
 
 
+def _dotted_from_path(path: str) -> tuple[str, str] | None:
+    directory = os.path.dirname(path)
+    parts = [os.path.splitext(os.path.basename(path))[0]]
+    while os.path.exists(os.path.join(directory, "__init__.py")):
+        parts.append(os.path.basename(directory))
+        directory = os.path.dirname(directory)
+    if len(parts) == 1:
+        return None
+    return directory, ".".join(reversed(parts))
+
+
 def _load_module_from_ref(ref: str) -> tuple[Origin, Any]:
     looks_like_path = ref.endswith(".py") or os.sep in ref or os.path.exists(ref)
     if looks_like_path:
         path = os.path.abspath(ref)
         if not os.path.exists(path):
             raise TargetError(f"file not found: {ref}")
+        packaged = _dotted_from_path(path)
+        if packaged is not None:
+            root, dotted = packaged
+            if root and root not in sys.path:
+                sys.path.insert(0, root)
+            module = importlib.import_module(dotted)
+            return Origin("path", path), module
         module_name = f"_nightman_target_{abs(hash(path))}"
         directory = os.path.dirname(path)
         if directory not in sys.path:

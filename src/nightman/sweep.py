@@ -76,19 +76,26 @@ def sweep(
     results: list[HuntResult] = []
     if specs:
         with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-            futures = [
-                pool.submit(
-                    hunt,
+            pairs = [
+                (
                     spec,
-                    seed=seed,
-                    max_examples=max_examples,
-                    config=resolved,
-                    wall_s=wall_s,
-                    backend=backend,
+                    pool.submit(
+                        hunt,
+                        spec,
+                        seed=seed,
+                        max_examples=max_examples,
+                        config=resolved,
+                        wall_s=wall_s,
+                        backend=backend,
+                    ),
                 )
                 for spec in specs
             ]
-            results = [future.result() for future in futures]
+            for spec, future in pairs:
+                try:
+                    results.append(future.result())
+                except Exception as exc:
+                    results.append(HuntResult(target=spec, status="error", message=f"hunt failed: {exc}"))
 
     findings = [
         r

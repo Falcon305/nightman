@@ -76,7 +76,17 @@ def _render(target: str, total: int, killed: int, survivors: list[str]) -> str:
 
 
 def score(target: str, *, seed: int = 0, max_examples: int = 150) -> MutationScore:
-    loaded = load_target(target)
+    try:
+        loaded = load_target(target)
+    except Exception as exc:
+        return MutationScore(
+            target=target,
+            total=0,
+            killed=0,
+            survived=0,
+            score=1.0,
+            report=f"Nightman: could not load {target} to score it — {exc}",
+        )
     func_name = loaded.qualname.split(".")[-1]
     source = _read(inspect.getsourcefile(loaded.func))
     original = _load_from_source(source, func_name, "<original>") if source else None

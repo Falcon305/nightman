@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import contextlib
 import multiprocessing as mp
+import os
+import shutil
 import signal
+import tempfile
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from types import ModuleType
@@ -44,12 +47,43 @@ def _raise_cpu(signum: int, frame: Any) -> None:
     raise TimeoutError("cpu time limit exceeded")
 
 
+@contextlib.contextmanager
+def _silence_output() -> Iterator[None]:
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    saved_out, saved_err = os.dup(1), os.dup(2)
+    try:
+        os.dup2(devnull, 1)
+        os.dup2(devnull, 2)
+        yield
+    finally:
+        os.dup2(saved_out, 1)
+        os.dup2(saved_err, 2)
+        os.close(saved_out)
+        os.close(saved_err)
+        os.close(devnull)
+
+
+@contextlib.contextmanager
+def _scratch_cwd() -> Iterator[None]:
+    origin = os.getcwd()
+    scratch = tempfile.mkdtemp(prefix="nightman-")
+    try:
+        os.chdir(scratch)
+        yield
+    finally:
+        with contextlib.suppress(OSError):
+            os.chdir(origin)
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
 def _child(conn: Any, func: Callable[..., Any], args: tuple, cpu_s: int, mem_mb: int) -> None:
     _apply_limits(cpu_s, mem_mb)
     with contextlib.suppress(ValueError, AttributeError, OSError):
         signal.signal(signal.SIGXCPU, _raise_cpu)
     try:
-        conn.send(("ok", func(*args)))
+        with _scratch_cwd(), _silence_output():
+            result = func(*args)
+        conn.send(("ok", result))
     except BaseException as exc:
         with contextlib.suppress(Exception):
             conn.send(("raised", type(exc).__name__, str(exc)))
